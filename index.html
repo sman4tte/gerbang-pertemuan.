@@ -231,20 +231,22 @@ function loadJitsi() {
   });
 }
 
-joinForm.addEventListener('submit', async e => {
-  e.preventDefault();
+joinForm.addEventListener('submit', e => { e.preventDefault(); enterRoom(false); });
+
+/* auto = true: peserta datang dari tautan undangan, nama boleh kosong (Jitsi akan menanyakannya) */
+async function enterRoom(auto) {
   errEl.textContent = '';
   myName = $('nama').value.trim();
   const code = slug($('kode').value);
-  if (myName.length < 2) { errEl.textContent = 'Isi nama lengkap Anda.'; return; }
+  if (!auto && myName.length < 2) { errEl.textContent = 'Isi nama lengkap Anda.'; return; }
   if (code.length < 4) { errEl.textContent = 'Kode kelas minimal 4 huruf atau angka.'; return; }
-  try { localStorage.setItem('nama', myName); } catch (e) {}
+  if (myName) { try { localStorage.setItem('nama', myName); } catch (e) {} }
   roomName = PREFIX + code;
   const meetUrl = 'https://' + DOMAIN + '/' + roomName;
 
-  joinForm.hidden = true; roomEl.hidden = false;
+  $('cover').hidden = true; joinForm.hidden = true; roomEl.hidden = false;
   $('roomTitle').textContent = 'Kelas ' + $('kode').value.trim();
-  $('roomMeta').textContent = 'Masuk sebagai ' + myName;
+  $('roomMeta').textContent = myName ? 'Masuk sebagai ' + myName : '';
   $('openTab').href = meetUrl;
   people.clear(); renderRoster(); startedAt = new Date();
 
@@ -263,9 +265,9 @@ joinForm.addEventListener('submit', async e => {
     roomName,
     parentNode: $('video'),
     width: '100%', height: '100%',
-    userInfo: { displayName: myName },
+    userInfo: { displayName: myName || undefined },
     configOverwrite: {
-      prejoinPageEnabled: false,
+      prejoinPageEnabled: !myName,   // tanpa nama: Jitsi menampilkan layar untuk mengisi nama
       disableDeepLinking: true,
       defaultLanguage: 'id',
       subject: 'Kelas ' + $('kode').value.trim()
@@ -285,13 +287,18 @@ joinForm.addEventListener('submit', async e => {
   api.addListener('displayNameChange', ev => { const p = people.get(ev.id); if (p) { p.name = ev.displayname; renderRoster(); } });
   api.addListener('participantLeft', ev => { const p = people.get(ev.id); if (p) { p.left = new Date(); renderRoster(); } });
   api.addListener('readyToClose', leaveRoom);
-});
+}
 
 $('start').addEventListener('click', () => {
   $('cover').hidden = true; joinForm.hidden = false;
   ($('nama').value ? $('kode') : $('nama')).focus();
 });
-if (params.get('kelas')) { $('cover').hidden = true; joinForm.hidden = false; }
+if (params.get('kelas')) {
+  $('cover').hidden = true;
+  const qn = (params.get('nama') || '').trim();
+  if (qn) $('nama').value = qn;
+  enterRoom(true);   // masuk otomatis dari tautan undangan
+}
 
 function leaveRoom() {
   if (api) { api.dispose(); api = null; }
